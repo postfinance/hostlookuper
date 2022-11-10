@@ -11,15 +11,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/VictoriaMetrics/metrics"
 	"github.com/peterbourgon/ff/v3"
 	"github.com/postfinance/flash"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
+
 	"go.uber.org/zap"
 )
 
 const (
-	metricsNamespace = "hostlookuper"
+	dnsDurationName = "hostlookuper_dns_lookup_duration_seconds"
+	dnsLookupName   = "hostlookuper_dns_lookup_total"
+	dnsErrorsName   = "hostlookuper_dns_errors_total"
 )
 
 //nolint:gochecknoglobals // There is no other way than doing so. Values will be set on build.
@@ -29,8 +31,8 @@ var (
 )
 
 func main() {
-
 	fs := flag.NewFlagSet("hostlookuper", flag.ExitOnError)
+
 	var (
 		debug    = fs.Bool("debug", false, "enable verbose logging")
 		interval = fs.Duration("interval", 5*time.Second, "interval between DNS checks. must be in Go time.ParseDuration format, e.g. 5s or 5m or 1h, etc")
@@ -60,23 +62,17 @@ func main() {
 		)
 	}
 
-	reg := prometheus.NewRegistry()
-	errCounter := newErrCounter()
-	totalCounter := newTotalCounter()
-	latency := newLatency(*timeout)
-
-	reg.MustRegister(errCounter, totalCounter, latency)
-
 	for _, host := range hosts {
-		look := newLookuper(host, l, errCounter, totalCounter, latency)
+		look := newLookuper(host, l)
 
 		go func() {
 			look.start(*interval, *timeout)
 		}()
 	}
 
-	mux := http.NewServeMux()
-	mux.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))
+	http.HandleFunc("/metrics", func(w http.ResponseWriter, req *http.Request) {
+		metrics.WritePrometheus(w, false)
+	})
 
 	l.Infow("starting server",
 		"listen", listen,
@@ -87,25 +83,18 @@ func main() {
 		"date", date,
 	)
 
-	l.Fatal(http.ListenAndServe(*listen, mux))
+	l.Fatal(http.ListenAndServe(*listen, http.DefaultServeMux))
 }
 
 type lookuper struct {
-	host         string
-	errCounter   *prometheus.CounterVec
-	totalCounter *prometheus.CounterVec
-	latency      *prometheus.HistogramVec
-	l            *zap.SugaredLogger
+	host string
+	l    *zap.SugaredLogger
 }
 
-func newLookuper(host string, log *zap.SugaredLogger, errCounter, totalCounter *prometheus.CounterVec,
-	latency *prometheus.HistogramVec) *lookuper {
+func newLookuper(host string, log *zap.SugaredLogger) *lookuper {
 	return &lookuper{
-		host:         host,
-		l:            log,
-		errCounter:   errCounter,
-		totalCounter: totalCounter,
-		latency:      latency,
+		host: host,
+		l:    log,
 	}
 }
 
@@ -119,8 +108,6 @@ func (l lookuper) start(interval, timeout time.Duration) {
 	)
 
 	time.Sleep(jitter)
-
-	l.errCounter.WithLabelValues(l.host).Add(0.0)
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -141,7 +128,7 @@ func (l lookuper) start(interval, timeout time.Duration) {
 			elapsed := time.Since(start)
 
 			if err != nil {
-				l.errCounter.WithLabelValues(l.host).Inc()
+				metrics.GetOrCreateCounter(fmt.Sprintf("%s{host=%q}", dnsErrorsName, l.host)).Inc()
 
 				l.l.Errorw("dns lookup failed",
 					"host", l.host,
@@ -149,11 +136,12 @@ func (l lookuper) start(interval, timeout time.Duration) {
 					"err", err,
 				)
 
+				// TODO: also increase total counter for errored requests ?
 				return
 			}
 
-			l.latency.WithLabelValues(l.host).Observe(elapsed.Seconds())
-			l.totalCounter.WithLabelValues(l.host).Inc()
+			metrics.GetOrCreateHistogram(fmt.Sprintf("%s{host=%q}", dnsDurationName, l.host)).Update(elapsed.Seconds())
+			metrics.GetOrCreateCounter(fmt.Sprintf("%s{host=%q}", dnsLookupName, l.host)).Inc()
 
 			l.l.Infow("lookup result",
 				"host", l.host,
@@ -174,47 +162,4 @@ func (h hosts) isValid() error {
 	}
 
 	return nil
-}
-
-func newLatency(timeout time.Duration) *prometheus.HistogramVec {
-	step := 0.5
-
-	// standard buckets to measure normal operation
-	buckets := []float64{.005, .01, .025, .05, .1, .25, .5}
-
-	// Take the configured timeout into account to be more precise. Step the timeout seconds (adding +1 to catch measurements
-	// for resolutions which are close to timeout) and create a bucket for each step.
-	for s := 1.0; s <= timeout.Seconds()+1; s += step {
-		buckets = append(buckets, s)
-	}
-
-	return prometheus.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Namespace: "hostlookuper",
-			Name:      "dns_lookup_duration_seconds",
-			Help:      "How long it took for the lookup partitioned by hostname.",
-			Buckets:   buckets,
-		},
-		[]string{"host"},
-	)
-}
-
-func newErrCounter() *prometheus.CounterVec {
-	return prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: metricsNamespace,
-		Name:      "dns_lookup_errors",
-		Help:      "Total number of dns lookup errors.",
-	},
-		[]string{"host"},
-	)
-}
-
-func newTotalCounter() *prometheus.CounterVec {
-	return prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: metricsNamespace,
-		Name:      "dns_lookup_total",
-		Help:      "Total number of dns lookups performed.",
-	},
-		[]string{"host"},
-	)
 }
