@@ -2,15 +2,16 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"math/rand"
 	"net"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
+	"github.com/peterbourgon/ff/v3"
 	"github.com/postfinance/flash"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -19,12 +20,6 @@ import (
 
 const (
 	metricsNamespace = "hostlookuper"
-
-	debugEnvName    = "HOSTLOOKUPER_DEBUG"
-	intervalEnvName = "HOSTLOOKUPER_INTERVAL"
-	timeoutEnvName  = "HOSTLOOKUPER_TIMEOUT"
-	hostsEnvName    = "HOSTLOOKUPER_HOSTS"
-	listenEnvName   = "HOSTLOOKUPER_LISTEN"
 )
 
 //nolint:gochecknoglobals // There is no other way than doing so. Values will be set on build.
@@ -34,47 +29,32 @@ var (
 )
 
 func main() {
+
+	fs := flag.NewFlagSet("hostlookuper", flag.ExitOnError)
+	var (
+		debug    = fs.Bool("debug", false, "enable verbose logging")
+		interval = fs.Duration("interval", 5*time.Second, "interval between DNS checks. must be in Go time.ParseDuration format, e.g. 5s or 5m or 1h, etc")
+		timeout  = fs.Duration("timeout", 5*time.Second, "maximum timeout for a DNS query. must be in Go time.ParseDuration format, e.g. 5s or 5m or 1h, etc")
+		listen   = fs.String("listen", ":9090", "address on which hostlookuper listens. e.g. 0.0.0.0:9090")
+		hostsVal = fs.String("hosts", "google.ch,ch.ch", "comma-separated list of hosts against which to perform DNS lookups")
+	)
+
+	err := ff.Parse(fs, os.Args[1:], ff.WithEnvVarPrefix("HOSTLOOKUPER"))
+	if err != nil {
+		fmt.Printf("unable to parse args/envs, exiting. error message: %v", err)
+
+		os.Exit(2)
+	}
+
 	rand.Seed(time.Now().UnixNano())
 
-	debug, _ := strconv.ParseBool(os.Getenv(debugEnvName))
-
 	logger := flash.New(flash.WithoutCaller())
-	logger.SetDebug(debug)
+	logger.SetDebug(*debug)
 	l := logger.Get()
 
-	intervalVal := os.Getenv(intervalEnvName)
-
-	interval, err := time.ParseDuration(intervalVal)
-	if err != nil {
-		l.Fatalw("parsing interval failed",
-			"env", intervalEnvName,
-			"val", intervalVal,
-			"err", err,
-		)
-	}
-
-	timeoutVal := os.Getenv(timeoutEnvName)
-
-	timeout, err := time.ParseDuration(timeoutVal)
-	if err != nil {
-		l.Fatalw("parsing timeout failed",
-			"env", timeoutEnvName,
-			"val", timeoutVal,
-			"err", err,
-		)
-	}
-
-	listen := ":8080"
-	if val, ok := os.LookupEnv(listenEnvName); ok {
-		listen = val
-	}
-
-	hostsVal := os.Getenv(hostsEnvName)
-
-	var hosts hosts = strings.Split(hostsVal, ",")
+	var hosts hosts = strings.Split(*hostsVal, ",")
 	if err := hosts.isValid(); err != nil {
 		l.Fatalw("parsing hosts failed",
-			"env", hostsEnvName,
 			"val", hostsVal,
 			"err", err,
 		)
@@ -83,7 +63,7 @@ func main() {
 	reg := prometheus.NewRegistry()
 	errCounter := newErrCounter()
 	totalCounter := newTotalCounter()
-	latency := newLatency(timeout)
+	latency := newLatency(*timeout)
 
 	reg.MustRegister(errCounter, totalCounter, latency)
 
@@ -91,7 +71,7 @@ func main() {
 		look := newLookuper(host, l, errCounter, totalCounter, latency)
 
 		go func() {
-			look.start(interval, timeout)
+			look.start(*interval, *timeout)
 		}()
 	}
 
@@ -107,7 +87,7 @@ func main() {
 		"date", date,
 	)
 
-	l.Fatal(http.ListenAndServe(listen, mux))
+	l.Fatal(http.ListenAndServe(*listen, mux))
 }
 
 type lookuper struct {

@@ -3,6 +3,7 @@ module github.com/postfinance/hostlookuper
 go 1.17
 
 require (
+	github.com/peterbourgon/ff/v3 v3.3.0
 	github.com/postfinance/flash v0.2.0
 	github.com/prometheus/client_golang v1.11.0
 	go.uber.org/zap v1.19.1
