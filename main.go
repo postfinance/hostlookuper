@@ -19,9 +19,9 @@ import (
 )
 
 const (
-	dnsDurationName = "hostlookuper_dns_lookup_duration_seconds"
-	dnsLookupName   = "hostlookuper_dns_lookup_total"
-	dnsErrorsName   = "hostlookuper_dns_errors_total"
+	dnsDurationName    = "hostlookuper_dns_lookup_duration_seconds"
+	dnsLookupTotalName = "hostlookuper_dns_lookup_total"
+	dnsErrorsTotalName = "hostlookuper_dns_errors_total"
 )
 
 //nolint:gochecknoglobals // There is no other way than doing so. Values will be set on build.
@@ -128,7 +128,8 @@ func (l lookuper) start(interval, timeout time.Duration) {
 			elapsed := time.Since(start)
 
 			if err != nil {
-				metrics.GetOrCreateCounter(fmt.Sprintf("%s{host=%q}", dnsErrorsName, l.host)).Inc()
+				metrics.GetOrCreateCounter(fmt.Sprintf("%s{host=%q}", dnsLookupTotalName, l.host)).Inc()
+				metrics.GetOrCreateCounter(fmt.Sprintf("%s{host=%q}", dnsErrorsTotalName, l.host)).Inc()
 
 				l.l.Errorw("dns lookup failed",
 					"host", l.host,
@@ -136,12 +137,11 @@ func (l lookuper) start(interval, timeout time.Duration) {
 					"err", err,
 				)
 
-				// TODO: also increase total counter for errored requests ?
 				return
 			}
 
 			metrics.GetOrCreateHistogram(fmt.Sprintf("%s{host=%q}", dnsDurationName, l.host)).Update(elapsed.Seconds())
-			metrics.GetOrCreateCounter(fmt.Sprintf("%s{host=%q}", dnsLookupName, l.host)).Inc()
+			metrics.GetOrCreateCounter(fmt.Sprintf("%s{host=%q}", dnsLookupTotalName, l.host)).Inc()
 
 			l.l.Infow("lookup result",
 				"host", l.host,
