@@ -1,3 +1,4 @@
+// main hostlookuper
 package main
 
 import (
@@ -83,7 +84,14 @@ func main() {
 		"date", date,
 	)
 
-	l.Fatal(http.ListenAndServe(*listen, http.DefaultServeMux))
+	srv := &http.Server{
+		ReadTimeout:       1 * time.Second,
+		WriteTimeout:      1 * time.Second,
+		IdleTimeout:       30 * time.Second,
+		ReadHeaderTimeout: 2 * time.Second,
+		Handler:           http.DefaultServeMux,
+	}
+	l.Fatal(srv.ListenAndServe())
 }
 
 type lookuper struct {
