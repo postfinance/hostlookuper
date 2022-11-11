@@ -2,7 +2,6 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"math/rand"
@@ -13,6 +12,7 @@ import (
 	"time"
 
 	"github.com/VictoriaMetrics/metrics"
+	"github.com/miekg/dns"
 	"github.com/peterbourgon/ff/v3"
 	"github.com/postfinance/flash"
 
@@ -42,6 +42,11 @@ func main() {
 		hostsVal = fs.String("hosts", "google.ch,ch.ch", "comma-separated list of hosts against which to perform DNS lookups")
 	)
 
+	// "default"
+	// "tcp://9.9.9.9"
+	// "udp://9.9.9.9"
+	// "udp://dns.cluster.local"
+
 	err := ff.Parse(fs, os.Args[1:], ff.WithEnvVarPrefix("HOSTLOOKUPER"))
 	if err != nil {
 		fmt.Printf("unable to parse args/envs, exiting. error message: %v", err)
@@ -64,10 +69,10 @@ func main() {
 	}
 
 	for _, host := range hosts {
-		look := newLookuper(host, l)
+		look := newLookuper(host, timeout, l)
 
 		go func() {
-			look.start(*interval, *timeout)
+			look.start(*interval)
 		}()
 	}
 
@@ -97,16 +102,23 @@ func main() {
 type lookuper struct {
 	host string
 	l    *zap.SugaredLogger
+	c    *dns.Client
 }
 
-func newLookuper(host string, log *zap.SugaredLogger) *lookuper {
+func newLookuper(host string, timeout *time.Duration, log *zap.SugaredLogger) *lookuper {
+	c := dns.Client{
+		Net:     "udp",
+		Timeout: *timeout,
+	}
+
 	return &lookuper{
 		host: host,
 		l:    log,
+		c:    &c,
 	}
 }
 
-func (l lookuper) start(interval, timeout time.Duration) {
+func (l *lookuper) start(interval time.Duration) {
 	//nolint:gosec // No need for a cryptographic secure random number since this is only used for a jitter.
 	jitter := time.Duration(rand.Float64() * float64(500*time.Millisecond))
 
@@ -126,14 +138,9 @@ func (l lookuper) start(interval, timeout time.Duration) {
 				"host", l.host,
 			)
 
-			start := time.Now()
-
-			ctx, cancel := context.WithTimeout(context.Background(), timeout)
-			defer cancel()
-
-			res, err := net.DefaultResolver.LookupHost(ctx, l.host)
-
-			elapsed := time.Since(start)
+			m := new(dns.Msg)
+			m.SetQuestion(fmt.Sprintf("%s.", l.host), dns.TypeA)
+			msg, rtt, err := l.c.Exchange(m, "9.9.9.9:53")
 
 			if err != nil {
 				metrics.GetOrCreateCounter(fmt.Sprintf("%s{host=%q}", dnsLookupTotalName, l.host)).Inc()
@@ -141,20 +148,20 @@ func (l lookuper) start(interval, timeout time.Duration) {
 
 				l.l.Errorw("dns lookup failed",
 					"host", l.host,
-					"time", elapsed,
+					"time", rtt,
 					"err", err,
 				)
 
 				return
 			}
 
-			metrics.GetOrCreateHistogram(fmt.Sprintf("%s{host=%q}", dnsDurationName, l.host)).Update(elapsed.Seconds())
+			metrics.GetOrCreateHistogram(fmt.Sprintf("%s{host=%q}", dnsDurationName, l.host)).Update(rtt.Seconds())
 			metrics.GetOrCreateCounter(fmt.Sprintf("%s{host=%q}", dnsLookupTotalName, l.host)).Inc()
 
 			l.l.Infow("lookup result",
 				"host", l.host,
-				"time", elapsed,
-				"result length", len(res),
+				"time", rtt,
+				"result length", len(msg.Answer),
 			)
 		}()
 	}
