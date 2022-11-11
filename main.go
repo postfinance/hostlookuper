@@ -171,6 +171,8 @@ func (l *lookuper) start(interval time.Duration) {
 		"jitter", jitter,
 	)
 
+	metrics.GetOrCreateCounter(fmt.Sprintf("%s%s", dnsLookupTotalName, l.labels)).Set(0)
+	metrics.GetOrCreateCounter(fmt.Sprintf("%s%s", dnsErrorsTotalName, l.labels)).Set(0)
 	time.Sleep(jitter)
 
 	ticker := time.NewTicker(interval)
