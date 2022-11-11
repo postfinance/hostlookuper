@@ -46,11 +46,11 @@ jobs:
 
       - name: Push snapshot images
         run: |
-          docker image ls --format "{{.Repository}}:{{.Tag}}" | xargs -I{} docker push  '{}'
+          docker image ls --format "{{.Repository}}:{{.Tag}}" | grep hostlookuper | xargs -I{} docker push  '{}'
 
       - name: Create and push manifest for :snapshot tag
         run: |
-          docker image ls --format "{{.Repository}}:{{.Tag}}" | paste -sd ' ' /dev/stdin > images
+          docker image ls --format "{{.Repository}}:{{.Tag}}" | grep hostlookuper | paste -sd ' ' /dev/stdin > images
           docker manifest create $(cat images) postfinance/hostlookuper:snapshot
 
   release:
