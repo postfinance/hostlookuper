@@ -31,21 +31,27 @@ var (
 	commit        = "12345678"
 )
 
+// DNSServer describes a protocol (network) and an address to contact a dns server
+type DNSServer struct {
+	network string
+	address string
+}
+
+func (srv DNSServer) String() string {
+	return fmt.Sprintf("%s://%s", srv.network, srv.address)
+}
+
 func main() {
 	fs := flag.NewFlagSet("hostlookuper", flag.ExitOnError)
 
 	var (
-		debug    = fs.Bool("debug", false, "enable verbose logging")
-		interval = fs.Duration("interval", 5*time.Second, "interval between DNS checks. must be in Go time.ParseDuration format, e.g. 5s or 5m or 1h, etc")
-		timeout  = fs.Duration("timeout", 5*time.Second, "maximum timeout for a DNS query. must be in Go time.ParseDuration format, e.g. 5s or 5m or 1h, etc")
-		listen   = fs.String("listen", ":9090", "address on which hostlookuper listens. e.g. 0.0.0.0:9090")
-		hostsVal = fs.String("hosts", "google.ch,ch.ch", "comma-separated list of hosts against which to perform DNS lookups")
+		debug         = fs.Bool("debug", false, "enable verbose logging")
+		interval      = fs.Duration("interval", 5*time.Second, "interval between DNS checks. must be in Go time.ParseDuration format, e.g. 5s or 5m or 1h, etc")
+		timeout       = fs.Duration("timeout", 5*time.Second, "maximum timeout for a DNS query. must be in Go time.ParseDuration format, e.g. 5s or 5m or 1h, etc")
+		listen        = fs.String("listen", ":9090", "address on which hostlookuper listens. e.g. 0.0.0.0:9090")
+		hostsVal      = fs.String("hosts", "google.ch,ch.ch", "comma-separated list of hosts against which to perform DNS lookups")
+		dnsServersVal = fs.String("dns-servers", "udp://9.9.9.9:53,udp://8.8.8.8:53", "comma-separated list of DNS servers. if the protocol is omitted, udp is implied, and if the port is omitted, 53 is implied")
 	)
-
-	// "default"
-	// "tcp://9.9.9.9"
-	// "udp://9.9.9.9"
-	// "udp://dns.cluster.local"
 
 	err := ff.Parse(fs, os.Args[1:], ff.WithEnvVarPrefix("HOSTLOOKUPER"))
 	if err != nil {
@@ -68,12 +74,46 @@ func main() {
 		)
 	}
 
-	for _, host := range hosts {
-		look := newLookuper(host, timeout, l)
+	dnsServersList := strings.Split(*dnsServersVal, ",")
+	dnsServers := make([]DNSServer, 0, len(dnsServersList))
 
-		go func() {
-			look.start(*interval)
-		}()
+	for _, dnsServer := range dnsServersList {
+		var network, address string
+
+		spl := strings.Split(dnsServer, "://")
+
+		switch len(spl) {
+		case 1:
+			network = "udp"
+			address = spl[0]
+
+		case 2:
+			network = spl[0]
+			address = spl[1]
+
+		default:
+			l.Fatalw("parsing dns servers list failed, wrong format used",
+				"val", dnsServer)
+		}
+
+		if !strings.Contains(address, ":") { // port was not specified, implying port 53
+			address += ":53"
+		}
+
+		dnsServers = append(dnsServers, DNSServer{
+			network: network,
+			address: address,
+		})
+	}
+
+	for _, host := range hosts {
+		for _, dnsServer := range dnsServers {
+			look := newLookuper(host, dnsServer, timeout, l)
+
+			go func() {
+				look.start(*interval)
+			}()
+		}
 	}
 
 	http.HandleFunc("/metrics", func(w http.ResponseWriter, req *http.Request) {
@@ -95,26 +135,31 @@ func main() {
 		IdleTimeout:       30 * time.Second,
 		ReadHeaderTimeout: 2 * time.Second,
 		Handler:           http.DefaultServeMux,
+		Addr:              *listen,
 	}
 	l.Fatal(srv.ListenAndServe())
 }
 
 type lookuper struct {
-	host string
-	l    *zap.SugaredLogger
-	c    *dns.Client
+	host      string
+	l         *zap.SugaredLogger
+	c         *dns.Client
+	dnsServer DNSServer
+	labels    string
 }
 
-func newLookuper(host string, timeout *time.Duration, log *zap.SugaredLogger) *lookuper {
+func newLookuper(host string, dnsServer DNSServer, timeout *time.Duration, log *zap.SugaredLogger) *lookuper {
 	c := dns.Client{
-		Net:     "udp",
+		Net:     dnsServer.network,
 		Timeout: *timeout,
 	}
 
 	return &lookuper{
-		host: host,
-		l:    log,
-		c:    &c,
+		host:      host,
+		labels:    fmt.Sprintf("{host=%q,dns_server=%q}", host, dnsServer),
+		l:         log.With("host", host, "dnsServer", dnsServer),
+		c:         &c,
+		dnsServer: dnsServer,
 	}
 }
 
@@ -123,7 +168,6 @@ func (l *lookuper) start(interval time.Duration) {
 	jitter := time.Duration(rand.Float64() * float64(500*time.Millisecond))
 
 	l.l.Infow("start delayed",
-		"host", l.host,
 		"jitter", jitter,
 	)
 
@@ -134,17 +178,15 @@ func (l *lookuper) start(interval time.Duration) {
 
 	for range ticker.C {
 		func() {
-			l.l.Debugw("lookup host",
-				"host", l.host,
-			)
+			l.l.Debug("lookup host")
 
 			m := new(dns.Msg)
 			m.SetQuestion(fmt.Sprintf("%s.", l.host), dns.TypeA)
-			msg, rtt, err := l.c.Exchange(m, "9.9.9.9:53")
+			msg, rtt, err := l.c.Exchange(m, l.dnsServer.address)
 
 			if err != nil {
-				metrics.GetOrCreateCounter(fmt.Sprintf("%s{host=%q}", dnsLookupTotalName, l.host)).Inc()
-				metrics.GetOrCreateCounter(fmt.Sprintf("%s{host=%q}", dnsErrorsTotalName, l.host)).Inc()
+				metrics.GetOrCreateCounter(fmt.Sprintf("%s%s", dnsLookupTotalName, l.labels)).Inc()
+				metrics.GetOrCreateCounter(fmt.Sprintf("%s%s", dnsErrorsTotalName, l.labels)).Inc()
 
 				l.l.Errorw("dns lookup failed",
 					"host", l.host,
@@ -155,11 +197,10 @@ func (l *lookuper) start(interval time.Duration) {
 				return
 			}
 
-			metrics.GetOrCreateHistogram(fmt.Sprintf("%s{host=%q}", dnsDurationName, l.host)).Update(rtt.Seconds())
-			metrics.GetOrCreateCounter(fmt.Sprintf("%s{host=%q}", dnsLookupTotalName, l.host)).Inc()
+			metrics.GetOrCreateHistogram(fmt.Sprintf("%s%s", dnsDurationName, l.labels)).Update(rtt.Seconds())
+			metrics.GetOrCreateCounter(fmt.Sprintf("%s%s", dnsLookupTotalName, l.labels)).Inc()
 
 			l.l.Infow("lookup result",
-				"host", l.host,
 				"time", rtt,
 				"result length", len(msg.Answer),
 			)
