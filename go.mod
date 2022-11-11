@@ -6,7 +6,7 @@ require (
 	github.com/VictoriaMetrics/metrics v1.23.0
 	github.com/peterbourgon/ff/v3 v3.3.0
 	github.com/postfinance/flash v0.2.0
-	go.uber.org/zap v1.19.1
+	go.uber.org/zap v1.23.0
 )
 
 require (
