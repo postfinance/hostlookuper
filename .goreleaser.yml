@@ -48,11 +48,11 @@ dockers:
       - --label=org.opencontainers.image.version={{ .Version }}
       - --pull
 docker_manifests:
-  - name_template: postfinance/{{ .ProjectName }:{{ .Version }}
+  - name_template: postfinance/{{ .ProjectName }}:{{ .Version }}
     image_templates:
-      - postfinance/{{ .ProjectName }:{{ .Version }}-amd64
-      - postfinance/{{ .ProjectName }:{{ .Version }}-arm64v8
-  - name_template: postfinance/{{ .ProjectName }:latest
+      - postfinance/{{ .ProjectName }}:{{ .Version }}-amd64
+      - postfinance/{{ .ProjectName }}:{{ .Version }}-arm64v8
+  - name_template: postfinance/{{ .ProjectName }}:latest
     image_templates:
-      - postfinance/{{ .ProjectName }:{{ .Version }}-amd64
-      - postfinance/{{ .ProjectName }:{{ .Version }}-arm64v8
+      - postfinance/{{ .ProjectName }}:{{ .Version }}-amd64
+      - postfinance/{{ .ProjectName }}:{{ .Version }}-arm64v8
