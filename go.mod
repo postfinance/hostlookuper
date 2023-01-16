@@ -3,7 +3,7 @@ module github.com/postfinance/hostlookuper
 go 1.17
 
 require (
-	github.com/VictoriaMetrics/metrics v1.23.0
+	github.com/VictoriaMetrics/metrics v1.23.1
 	github.com/miekg/dns v1.1.50
 	github.com/peterbourgon/ff/v3 v3.3.0
 	github.com/postfinance/flash v0.4.0
