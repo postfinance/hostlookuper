@@ -2,6 +2,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"math/rand"
@@ -35,10 +36,11 @@ var (
 type DNSServer struct {
 	network string
 	address string
+	name    string
 }
 
 func (srv DNSServer) String() string {
-	return fmt.Sprintf("%s://%s", srv.network, srv.address)
+	return fmt.Sprintf("%s://%s", srv.network, srv.name)
 }
 
 func main() {
@@ -50,7 +52,7 @@ func main() {
 		timeout       = fs.Duration("timeout", 5*time.Second, "maximum timeout for a DNS query. must be in Go time.ParseDuration format, e.g. 5s or 5m or 1h, etc")
 		listen        = fs.String("listen", ":9090", "address on which hostlookuper listens. e.g. 0.0.0.0:9090")
 		hostsVal      = fs.String("hosts", "google.ch,ch.ch", "comma-separated list of hosts against which to perform DNS lookups")
-		dnsServersVal = fs.String("dns-servers", "udp://9.9.9.9:53,udp://8.8.8.8:53", "comma-separated list of DNS servers. if the protocol is omitted, udp is implied, and if the port is omitted, 53 is implied")
+		dnsServersVal = fs.String("dns-servers", "udp://9.9.9.9:53,udp://8.8.8.8:53,udp://one.one.one.one:53", "comma-separated list of DNS servers. if the protocol is omitted, udp is implied, and if the port is omitted, 53 is implied")
 	)
 
 	err := ff.Parse(fs, os.Args[1:], ff.WithEnvVarPrefix("HOSTLOOKUPER"))
@@ -78,7 +80,7 @@ func main() {
 	dnsServers := make([]DNSServer, 0, len(dnsServersList))
 
 	for _, dnsServer := range dnsServersList {
-		var network, address string
+		var network, address, name string
 
 		spl := strings.Split(dnsServer, "://")
 
@@ -100,9 +102,28 @@ func main() {
 			address += ":53"
 		}
 
+		name = address
+		spl = strings.Split(address, ":")
+		host, port := spl[0], spl[1]
+		if ip := net.ParseIP(host); ip == nil { // dns server specified using DNS name
+			ips, err := net.DefaultResolver.LookupIP(context.Background(), "ip", host)
+			if err != nil {
+				l.Fatalw("could not resolve dns server ip address", "host", host, err)
+			}
+
+			if len(ips) > 1 {
+				l.Warnw("multiple DNS server IP resolved from host. arbitrarily picking the first resolved ip", "host", host, "resolved_ips", ips)
+			}
+
+			address = fmt.Sprintf("%v:%s", ips[0], port)
+		}
+
+		l.Infow("added a new DNS server", "name", name, "address", address)
+
 		dnsServers = append(dnsServers, DNSServer{
 			network: network,
 			address: address,
+			name:    name,
 		})
 	}
 
