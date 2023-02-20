@@ -6,7 +6,7 @@ require (
 	github.com/VictoriaMetrics/metrics v1.23.1
 	github.com/miekg/dns v1.1.50
 	github.com/peterbourgon/ff/v3 v3.3.0
-	github.com/postfinance/flash v0.4.0
+	github.com/postfinance/flash v0.5.0
 	go.uber.org/zap v1.24.0
 )
 
@@ -16,10 +16,11 @@ require (
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/mattn/go-isatty v0.0.16 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
-	github.com/prometheus/client_golang v1.13.0 // indirect
-	github.com/prometheus/client_model v0.2.0 // indirect
+	github.com/prometheus/client_golang v1.14.0 // indirect
+	github.com/prometheus/client_model v0.3.0 // indirect
 	github.com/prometheus/common v0.37.0 // indirect
 	github.com/prometheus/procfs v0.8.0 // indirect
+	github.com/sykesm/zap-logfmt v0.0.4 // indirect
 	github.com/valyala/fastrand v1.1.0 // indirect
 	github.com/valyala/histogram v1.2.0 // indirect
 	go.uber.org/atomic v1.7.0 // indirect
