@@ -87,7 +87,7 @@ func parseDNSServers(l *zap.SugaredLogger, dnsServersStr string) []DNSServer {
 			address = fmt.Sprintf("%v:%s", ips[0], port)
 		}
 
-		l.Infow("added a new DNS server", "name", name, "address", address)
+		l.Infow("added a new DNS server", "name", name, "network", network, "address", address)
 
 		dnsServers = append(dnsServers, DNSServer{
 			network: network,
