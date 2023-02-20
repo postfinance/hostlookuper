@@ -179,34 +179,31 @@ func (l *lookuper) start(interval time.Duration) {
 	defer ticker.Stop()
 
 	for range ticker.C {
-		func() {
-			l.l.Debug("lookup host")
+		l.l.Debug("lookup host")
 
-			m := new(dns.Msg)
-			m.SetQuestion(fmt.Sprintf("%s.", l.host), dns.TypeA)
-			msg, rtt, err := l.c.Exchange(m, l.dnsServer.address)
+		m := new(dns.Msg)
+		m.SetQuestion(fmt.Sprintf("%s.", l.host), dns.TypeA)
+		msg, rtt, err := l.c.Exchange(m, l.dnsServer.address)
+		metrics.GetOrCreateCounter(fmt.Sprintf("%s%s", dnsLookupTotalName, l.labels)).Inc()
 
-			if err != nil {
-				metrics.GetOrCreateCounter(fmt.Sprintf("%s%s", dnsLookupTotalName, l.labels)).Inc()
-				metrics.GetOrCreateCounter(fmt.Sprintf("%s%s", dnsErrorsTotalName, l.labels)).Inc()
+		if err != nil {
+			metrics.GetOrCreateCounter(fmt.Sprintf("%s%s", dnsErrorsTotalName, l.labels)).Inc()
 
-				l.l.Errorw("dns lookup failed",
-					"host", l.host,
-					"time", rtt,
-					"err", err,
-				)
-
-				return
-			}
-
-			metrics.GetOrCreateHistogram(fmt.Sprintf("%s%s", dnsDurationName, l.labels)).Update(rtt.Seconds())
-			metrics.GetOrCreateCounter(fmt.Sprintf("%s%s", dnsLookupTotalName, l.labels)).Inc()
-
-			l.l.Infow("lookup result",
+			l.l.Errorw("dns lookup failed",
+				"host", l.host,
 				"time", rtt,
-				"result length", len(msg.Answer),
+				"err", err,
 			)
-		}()
+
+			continue
+		}
+
+		metrics.GetOrCreateHistogram(fmt.Sprintf("%s%s", dnsDurationName, l.labels)).Update(rtt.Seconds())
+
+		l.l.Debugw("lookup result",
+			"time", rtt,
+			"result length", len(msg.Answer),
+		)
 	}
 }
 
