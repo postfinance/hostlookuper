@@ -43,6 +43,62 @@ func (srv DNSServer) String() string {
 	return fmt.Sprintf("%s://%s", srv.network, srv.name)
 }
 
+func parseDNSServers(l *zap.SugaredLogger, dnsServersStr string) []DNSServer {
+	dnsServersList := strings.Split(dnsServersStr, ",")
+	dnsServers := make([]DNSServer, 0, len(dnsServersList))
+
+	for _, dnsServer := range dnsServersList {
+		var network, address, name string
+
+		spl := strings.Split(dnsServer, "://")
+
+		switch len(spl) {
+		case 1:
+			network = "udp"
+			address = spl[0]
+
+		case 2:
+			network = spl[0]
+			address = spl[1]
+
+		default:
+			l.Fatalw("parsing dns servers list failed, wrong format used",
+				"val", dnsServer)
+		}
+
+		if !strings.Contains(address, ":") { // port was not specified, implying port 53
+			address += ":53"
+		}
+
+		name = address
+		spl = strings.Split(address, ":")
+		host, port := spl[0], spl[1]
+
+		if ip := net.ParseIP(host); ip == nil { // dns server specified using DNS name
+			ips, err := net.DefaultResolver.LookupIP(context.Background(), "ip", host)
+			if err != nil {
+				l.Fatalw("could not resolve dns server ip address", "host", host, err)
+			}
+
+			if len(ips) > 1 {
+				l.Warnw("multiple DNS server IP resolved from host. arbitrarily picking the first resolved ip", "host", host, "resolved_ips", ips)
+			}
+
+			address = fmt.Sprintf("%v:%s", ips[0], port)
+		}
+
+		l.Infow("added a new DNS server", "name", name, "address", address)
+
+		dnsServers = append(dnsServers, DNSServer{
+			network: network,
+			address: address,
+			name:    name,
+		})
+	}
+
+	return dnsServers
+}
+
 func main() {
 	fs := flag.NewFlagSet("hostlookuper", flag.ExitOnError)
 
@@ -76,56 +132,7 @@ func main() {
 		)
 	}
 
-	dnsServersList := strings.Split(*dnsServersVal, ",")
-	dnsServers := make([]DNSServer, 0, len(dnsServersList))
-
-	for _, dnsServer := range dnsServersList {
-		var network, address, name string
-
-		spl := strings.Split(dnsServer, "://")
-
-		switch len(spl) {
-		case 1:
-			network = "udp"
-			address = spl[0]
-
-		case 2:
-			network = spl[0]
-			address = spl[1]
-
-		default:
-			l.Fatalw("parsing dns servers list failed, wrong format used",
-				"val", dnsServer)
-		}
-
-		if !strings.Contains(address, ":") { // port was not specified, implying port 53
-			address += ":53"
-		}
-
-		name = address
-		spl = strings.Split(address, ":")
-		host, port := spl[0], spl[1]
-		if ip := net.ParseIP(host); ip == nil { // dns server specified using DNS name
-			ips, err := net.DefaultResolver.LookupIP(context.Background(), "ip", host)
-			if err != nil {
-				l.Fatalw("could not resolve dns server ip address", "host", host, err)
-			}
-
-			if len(ips) > 1 {
-				l.Warnw("multiple DNS server IP resolved from host. arbitrarily picking the first resolved ip", "host", host, "resolved_ips", ips)
-			}
-
-			address = fmt.Sprintf("%v:%s", ips[0], port)
-		}
-
-		l.Infow("added a new DNS server", "name", name, "address", address)
-
-		dnsServers = append(dnsServers, DNSServer{
-			network: network,
-			address: address,
-			name:    name,
-		})
-	}
+	dnsServers := parseDNSServers(l, *dnsServersVal)
 
 	for _, host := range hosts {
 		for _, dnsServer := range dnsServers {
