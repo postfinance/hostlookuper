@@ -5,6 +5,18 @@ on:
   push:
 
 jobs:
+  check-gh-token:
+    runs-on: ubuntu-latest
+    outputs:
+        HAS_DOCKERHUB_TOKEN: ${{ steps.gh-token.outputs.HAS_DOCKERHUB_TOKEN }}
+    steps:
+        - id: gh-token
+          env:
+              HAS_DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN != '' }}
+          run: |
+           echo "HAS_DOCKERHUB_TOKEN=$HAS_DOCKERHUB_TOKEN" >> $GITHUB_OUTPUT
+           echo "HAS_DOCKERHUB_TOKEN=$HAS_DOCKERHUB_TOKEN" >> $GITHUB_STEP_SUMMARY
+
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -18,8 +30,12 @@ jobs:
           version: v1.50.1
 
   build:
-    if: "!startsWith(github.ref, 'refs/tags/v')"
-    needs: [lint]
+    needs:
+    - lint
+    - check-gh-token
+    if: |
+      !startsWith(github.ref, 'refs/tags/v') &&
+      needs.check-gh-token.outputs.HAS_DOCKERHUB_TOKEN == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -57,8 +73,12 @@ jobs:
           docker manifest push $GITHUB_REPOSITORY:snapshot
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [lint]
+    needs:
+    - lint
+    - check-gh-token
+    if: |
+      startsWith(github.ref, 'refs/tags/v') &&
+      needs.check-gh-token.outputs.HAS_DOCKERHUB_TOKEN == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
