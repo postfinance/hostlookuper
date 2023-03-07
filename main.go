@@ -125,12 +125,12 @@ func main() {
 	l := logger.Get()
 
 	var hosts hosts = strings.Split(*hostsVal, ",")
-	// if err := hosts.isValid(); err != nil {
-	// 	l.Fatalw("parsing hosts failed",
-	// 		"val", hostsVal,
-	// 		"err", err,
-	// 	)
-	// }
+	if err := hosts.isValid(); err != nil {
+		l.Fatalw("parsing hosts failed",
+			"val", hostsVal,
+			"err", err,
+		)
+	}
 
 	dnsServers := parseDNSServers(l, *dnsServersVal)
 
