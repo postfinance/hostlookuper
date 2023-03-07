@@ -125,12 +125,12 @@ func main() {
 	l := logger.Get()
 
 	var hosts hosts = strings.Split(*hostsVal, ",")
-	if err := hosts.isValid(); err != nil {
-		l.Fatalw("parsing hosts failed",
-			"val", hostsVal,
-			"err", err,
-		)
-	}
+	// if err := hosts.isValid(); err != nil {
+	// 	l.Fatalw("parsing hosts failed",
+	// 		"val", hostsVal,
+	// 		"err", err,
+	// 	)
+	// }
 
 	dnsServers := parseDNSServers(l, *dnsServersVal)
 
@@ -199,7 +199,6 @@ func (l *lookuper) start(interval time.Duration) {
 		"jitter", jitter,
 	)
 
-	metrics.GetOrCreateCounter(fmt.Sprintf("%s{%s}", dnsLookupTotalName, l.labels)).Set(0)
 	metrics.GetOrCreateCounter(fmt.Sprintf("%s{%s}", dnsErrorsTotalName, l.labels)).Set(0)
 	time.Sleep(jitter)
 
@@ -212,7 +211,8 @@ func (l *lookuper) start(interval time.Duration) {
 		m := new(dns.Msg)
 		m.SetQuestion(fmt.Sprintf("%s.", l.host), dns.TypeA)
 		msg, rtt, err := l.c.Exchange(m, l.dnsServer.address)
-		metrics.GetOrCreateCounter(fmt.Sprintf("%s{%s}", dnsLookupTotalName, l.labels)).Inc()
+		metrics.GetOrCreateCounter(fmt.Sprintf("%s{%s,rcode=%q}",
+			dnsLookupTotalName, l.labels, dns.RcodeToString[msg.Rcode])).Inc()
 
 		if err != nil {
 			metrics.GetOrCreateCounter(fmt.Sprintf("%s{%s}", dnsErrorsTotalName, l.labels)).Inc()
@@ -226,8 +226,8 @@ func (l *lookuper) start(interval time.Duration) {
 			continue
 		}
 
-		metrics.GetOrCreateHistogram(fmt.Sprintf("%s{%s,rcode=%q}",
-			dnsDurationName, l.labels, dns.RcodeToString[msg.Rcode])).Update(rtt.Seconds())
+		metrics.GetOrCreateHistogram(fmt.Sprintf("%s{%s}",
+			dnsDurationName, l.labels)).Update(rtt.Seconds())
 
 		l.l.Debugw("lookup result",
 			"time", rtt,
