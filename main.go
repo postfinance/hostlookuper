@@ -211,8 +211,14 @@ func (l *lookuper) start(interval time.Duration) {
 		m := new(dns.Msg)
 		m.SetQuestion(fmt.Sprintf("%s.", l.host), dns.TypeA)
 		msg, rtt, err := l.c.Exchange(m, l.dnsServer.address)
+		rcodeStr, ok := dns.RcodeToString[msg.Rcode]
+
+		if !ok { // rcode not known in table.
+			rcodeStr = fmt.Sprintf("%#x", msg.Rcode)
+		}
+
 		metrics.GetOrCreateCounter(fmt.Sprintf("%s{%s,rcode=%q}",
-			dnsLookupTotalName, l.labels, dns.RcodeToString[msg.Rcode])).Inc()
+			dnsLookupTotalName, l.labels, rcodeStr)).Inc()
 
 		if err != nil {
 			metrics.GetOrCreateCounter(fmt.Sprintf("%s{%s}", dnsErrorsTotalName, l.labels)).Inc()
