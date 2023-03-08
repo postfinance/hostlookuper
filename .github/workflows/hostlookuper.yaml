@@ -5,12 +5,12 @@ on:
   push:
 
 jobs:
-  check-gh-token:
+  check-dockerhub-token:
     runs-on: ubuntu-latest
     outputs:
-        HAS_DOCKERHUB_TOKEN: ${{ steps.gh-token.outputs.HAS_DOCKERHUB_TOKEN }}
+        HAS_DOCKERHUB_TOKEN: ${{ steps.dockerhub-token.outputs.HAS_DOCKERHUB_TOKEN }}
     steps:
-        - id: gh-token
+        - id: dockerhub-token
           env:
               HAS_DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN != '' }}
           run: |
@@ -32,10 +32,10 @@ jobs:
   build:
     needs:
     - lint
-    - check-gh-token
+    - check-dockerhub-token
     if: |
       !startsWith(github.ref, 'refs/tags/v') &&
-      needs.check-gh-token.outputs.HAS_DOCKERHUB_TOKEN == 'true'
+      needs.check-dockerhub-token.outputs.HAS_DOCKERHUB_TOKEN == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -75,10 +75,10 @@ jobs:
   release:
     needs:
     - lint
-    - check-gh-token
+    - check-dockerhub-token
     if: |
       startsWith(github.ref, 'refs/tags/v') &&
-      needs.check-gh-token.outputs.HAS_DOCKERHUB_TOKEN == 'true'
+      needs.check-dockerhub-token.outputs.HAS_DOCKERHUB_TOKEN == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
