@@ -211,16 +211,9 @@ func (l *lookuper) start(interval time.Duration) {
 		m := new(dns.Msg)
 		m.SetQuestion(fmt.Sprintf("%s.", l.host), dns.TypeA)
 		msg, rtt, err := l.c.Exchange(m, l.dnsServer.address)
-		rcodeStr, ok := dns.RcodeToString[msg.Rcode]
-
-		if !ok { // rcode not known in table.
-			rcodeStr = fmt.Sprintf("%#x", msg.Rcode)
-		}
-
-		metrics.GetOrCreateCounter(fmt.Sprintf("%s{%s,rcode=%q}",
-			dnsLookupTotalName, l.labels, rcodeStr)).Inc()
 
 		if err != nil {
+			metrics.GetOrCreateCounter(fmt.Sprintf("%s{%s}", dnsLookupTotalName, l.labels)).Inc()
 			metrics.GetOrCreateCounter(fmt.Sprintf("%s{%s}", dnsErrorsTotalName, l.labels)).Inc()
 
 			l.l.Errorw("dns lookup failed",
@@ -232,6 +225,14 @@ func (l *lookuper) start(interval time.Duration) {
 			continue
 		}
 
+		rcodeStr, ok := dns.RcodeToString[msg.Rcode]
+
+		if !ok { // if rcode not known in table.
+			rcodeStr = fmt.Sprintf("%#x", msg.Rcode)
+		}
+
+		metrics.GetOrCreateCounter(fmt.Sprintf("%s{%s,rcode=%q}",
+			dnsLookupTotalName, l.labels, rcodeStr)).Inc()
 		metrics.GetOrCreateHistogram(fmt.Sprintf("%s{%s}",
 			dnsDurationName, l.labels)).Update(rtt.Seconds())
 
