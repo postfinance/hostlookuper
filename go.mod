@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/VictoriaMetrics/metrics v1.23.1
-	github.com/miekg/dns v1.1.52
+	github.com/miekg/dns v1.1.53
 	github.com/peterbourgon/ff/v3 v3.3.0
 	github.com/postfinance/flash v0.5.0
 	go.uber.org/zap v1.24.0
