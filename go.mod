@@ -3,7 +3,7 @@ module github.com/postfinance/hostlookuper
 go 1.19
 
 require (
-	github.com/VictoriaMetrics/metrics v1.24.0
+	github.com/VictoriaMetrics/metrics v1.25.3
 	github.com/miekg/dns v1.1.57
 	github.com/peterbourgon/ff/v3 v3.4.0
 	github.com/postfinance/flash v0.5.1
@@ -26,7 +26,7 @@ require (
 	go.uber.org/multierr v1.10.0 // indirect
 	golang.org/x/mod v0.12.0 // indirect
 	golang.org/x/net v0.17.0 // indirect
-	golang.org/x/sys v0.13.0 // indirect
+	golang.org/x/sys v0.15.0 // indirect
 	golang.org/x/tools v0.13.0 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
