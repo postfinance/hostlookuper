@@ -16,7 +16,6 @@ import (
 	"github.com/miekg/dns"
 	"github.com/peterbourgon/ff/v3"
 	"github.com/postfinance/flash"
-
 	"go.uber.org/zap"
 )
 
@@ -118,8 +117,6 @@ func main() {
 		os.Exit(2)
 	}
 
-	rand.Seed(time.Now().UnixNano())
-
 	logger := flash.New(flash.WithoutCaller())
 	logger.SetDebug(*debug)
 	l := logger.Get()
@@ -144,7 +141,7 @@ func main() {
 		}
 	}
 
-	http.HandleFunc("/metrics", func(w http.ResponseWriter, req *http.Request) {
+	http.HandleFunc("/metrics", func(w http.ResponseWriter, _ *http.Request) {
 		metrics.WritePrometheus(w, false)
 	})
 

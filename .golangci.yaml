@@ -1,11 +1,6 @@
 ---
 run:
   tests: false
-  skip-dirs:
-    - .github
-    - build
-    - web
-    - .go
 linters-settings:
   dupl:
     threshold: 100
@@ -27,15 +22,12 @@ linters-settings:
   gocyclo:
     min-complexity: 15
   revive:
-    min-confidence: 0.8
-  govet:
-    check-shadowing: true
+    confidence: 0.8
   lll:
     line-length: 140
   misspell:
     locale: US
   nolintlint:
-    allow-leading-space: false
     require-explanation: true
     allow-no-explanation:
       - gocognit
@@ -46,7 +38,6 @@ linters:
   disable-all: true
   enable:
     - bodyclose
-    - depguard
     - dogsled
     - dupl
     - errcheck
@@ -69,6 +60,8 @@ linters:
     - misspell
     - nakedret
     - prealloc
+    - protogetter
+    - rowserrcheck
     - exportloopref
     - staticcheck
     - stylecheck
@@ -88,3 +81,8 @@ issues:
     - 'shadow: declaration of "err" shadows declaration.*'
   max-same-issues: 0
   exclude-use-default: false
+  exclude-dirs:
+    - .github
+    - build
+    - web
+    - .go
