@@ -3,7 +3,7 @@ module github.com/postfinance/hostlookuper
 go 1.22
 
 require (
-	github.com/VictoriaMetrics/metrics v1.33.1
+	github.com/VictoriaMetrics/metrics v1.34.0
 	github.com/miekg/dns v1.1.61
 	github.com/peterbourgon/ff/v3 v3.4.0
 	github.com/postfinance/flash v0.5.1
@@ -23,7 +23,6 @@ require (
 	github.com/sykesm/zap-logfmt v0.0.4 // indirect
 	github.com/valyala/fastrand v1.1.0 // indirect
 	github.com/valyala/histogram v1.2.0 // indirect
-	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
 	golang.org/x/mod v0.18.0 // indirect
 	golang.org/x/net v0.26.0 // indirect
