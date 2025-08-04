@@ -38,6 +38,13 @@ type DNSServer struct {
 	name    string
 }
 
+type Histogram interface {
+	Update(v float64)
+	UpdateDuration(start time.Time)
+}
+
+var histogramGetter func(string) Histogram
+
 func (srv DNSServer) String() string {
 	return fmt.Sprintf("%s://%s", srv.network, srv.name)
 }
@@ -102,12 +109,13 @@ func main() {
 	fs := flag.NewFlagSet("hostlookuper", flag.ExitOnError)
 
 	var (
-		debug         = fs.Bool("debug", false, "enable verbose logging")
-		interval      = fs.Duration("interval", 5*time.Second, "interval between DNS checks. must be in Go time.ParseDuration format, e.g. 5s or 5m or 1h, etc")
-		timeout       = fs.Duration("timeout", 5*time.Second, "maximum timeout for a DNS query. must be in Go time.ParseDuration format, e.g. 5s or 5m or 1h, etc")
-		listen        = fs.String("listen", ":9090", "address on which hostlookuper listens. e.g. 0.0.0.0:9090")
-		hostsVal      = fs.String("hosts", "google.ch,ch.ch", "comma-separated list of hosts against which to perform DNS lookups")
-		dnsServersVal = fs.String("dns-servers", "udp://9.9.9.9:53,udp://8.8.8.8:53,udp://one.one.one.one:53", "comma-separated list of DNS servers. if the protocol is omitted, udp is implied, and if the port is omitted, 53 is implied")
+		debug               = fs.Bool("debug", false, "enable verbose logging")
+		prometheusHistogram = fs.Bool("prom-histogram", false, "use Prometheus-compatible (le) histograms (default is false)")
+		interval            = fs.Duration("interval", 5*time.Second, "interval between DNS checks. must be in Go time.ParseDuration format, e.g. 5s or 5m or 1h, etc")
+		timeout             = fs.Duration("timeout", 5*time.Second, "maximum timeout for a DNS query. must be in Go time.ParseDuration format, e.g. 5s or 5m or 1h, etc")
+		listen              = fs.String("listen", ":9090", "address on which hostlookuper listens. e.g. 0.0.0.0:9090")
+		hostsVal            = fs.String("hosts", "google.ch,ch.ch", "comma-separated list of hosts against which to perform DNS lookups")
+		dnsServersVal       = fs.String("dns-servers", "udp://9.9.9.9:53,udp://8.8.8.8:53,udp://one.one.one.one:53", "comma-separated list of DNS servers. if the protocol is omitted, udp is implied, and if the port is omitted, 53 is implied")
 	)
 
 	err := ff.Parse(fs, os.Args[1:], ff.WithEnvVarPrefix("HOSTLOOKUPER"))
@@ -127,6 +135,14 @@ func main() {
 			"val", hostsVal,
 			"err", err,
 		)
+	}
+
+	histogramGetter = func(name string) Histogram {
+		if *prometheusHistogram {
+			return metrics.GetOrCreatePrometheusHistogram(name)
+		} else {
+			return metrics.GetOrCreateHistogram(name)
+		}
 	}
 
 	dnsServers := parseDNSServers(l, *dnsServersVal)
@@ -208,7 +224,6 @@ func (l *lookuper) start(interval time.Duration) {
 		m := new(dns.Msg)
 		m.SetQuestion(fmt.Sprintf("%s.", l.host), dns.TypeA)
 		msg, rtt, err := l.c.Exchange(m, l.dnsServer.address)
-
 		if err != nil {
 			metrics.GetOrCreateCounter(fmt.Sprintf("%s{%s}", dnsLookupTotalName, l.labels)).Inc()
 			metrics.GetOrCreateCounter(fmt.Sprintf("%s{%s}", dnsErrorsTotalName, l.labels)).Inc()
@@ -230,7 +245,7 @@ func (l *lookuper) start(interval time.Duration) {
 
 		metrics.GetOrCreateCounter(fmt.Sprintf("%s{%s,rcode=%q}",
 			dnsLookupTotalName, l.labels, rcodeStr)).Inc()
-		metrics.GetOrCreateHistogram(fmt.Sprintf("%s{%s}",
+		histogramGetter(fmt.Sprintf("%s{%s}",
 			dnsDurationName, l.labels)).Update(rtt.Seconds())
 
 		l.l.Debugw("lookup result",
