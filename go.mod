@@ -5,7 +5,7 @@ go 1.24.0
 toolchain go1.24.2
 
 require (
-	github.com/VictoriaMetrics/metrics v1.40.2
+	github.com/VictoriaMetrics/metrics v1.41.2
 	github.com/miekg/dns v1.1.72
 	github.com/peterbourgon/ff/v3 v3.4.0
 	github.com/postfinance/flash v0.5.1
