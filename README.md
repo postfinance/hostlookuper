@@ -7,6 +7,15 @@ It can be used to continuously monitor a list of DNS servers and procotols, so
 as to detect anomalies in the network early on. Lookup errors are logged, and
 also accounted for in the `hostlookuper_dns_errors_total` metric.
 
+## Installation
+
+Docker images are available on both registries:
+
+```
+docker.io/postfinance/hostlookuper
+ghcr.io/postfinance/hostlookuper
+```
+
 ## Usage
 
 `hostlookuper` is configured with the following arguments:
