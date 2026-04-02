@@ -7,16 +7,9 @@ It can be used to continuously monitor a list of DNS servers and procotols, so
 as to detect anomalies in the network early on. Lookup errors are logged, and
 also accounted for in the `hostlookuper_dns_errors_total` metric.
 
-###
-
-⚠️ For the time being, and until
-https://github.com/VictoriaMetrics/metrics/pull/45 is merged into
-VictoriaMetrics Go instrumentation, the bucket metrics exported by hostlookuper
-are only compatible with VictoriaMetrics, not prometheus.
-
 ## Usage
 
-`hostlookuper` is configured with the follwoing arguments:
+`hostlookuper` is configured with the following arguments:
 
 ```bash
 $ hostlookuper -h
@@ -31,6 +24,8 @@ Usage of hostlookuper:
         interval between DNS checks. must be in Go time.ParseDuration format, e.g. 5s or 5m or 1h, etc (default 5s)
   -listen string
         address on which hostlookuper listens. e.g. 0.0.0.0:9090 (default ":9090")
+  -prom-histogram
+        use Prometheus-compatible (le) histograms (default is false)
   -timeout duration
         maximum timeout for a DNS query. must be in Go time.ParseDuration format, e.g. 5s or 5m or 1h, etc (default 5s)
 ```
