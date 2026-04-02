@@ -30,10 +30,15 @@ Usage of hostlookuper:
         maximum timeout for a DNS query. must be in Go time.ParseDuration format, e.g. 5s or 5m or 1h, etc (default 5s)
 ```
 
-## Metrics
+## Endpoints
 
-`hostlookuper` metrics are available under the `/metrics` URL. An example
-`/metrics` can be found in [`doc/example_metrics`](./doc/example_metrics)
+| Path | Description |
+|------|-------------|
+| `/metrics` | Prometheus metrics |
+| `/healthz` | Liveness probe — returns 200 OK |
+| `/readyz` | Readiness probe — returns 200 OK |
+
+An example `/metrics` response can be found in [`doc/example_metrics`](./doc/example_metrics)
 
 ![Grafana dashboard](./doc/grafana_example.png)
 ## Grafana Dashboard

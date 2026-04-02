@@ -160,6 +160,12 @@ func main() {
 	http.HandleFunc("/metrics", func(w http.ResponseWriter, _ *http.Request) {
 		metrics.WritePrometheus(w, false)
 	})
+	http.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	http.HandleFunc("/readyz", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
 
 	l.Infow("starting server",
 		"listen", listen,
